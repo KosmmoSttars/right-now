@@ -1,0 +1,9 @@
+node_modules
+dist
+scripts/.cache
+test-results
+playwright-report
+*.log
+test-results
+*.tsbuildinfo
+tools/deploy.local.ps1

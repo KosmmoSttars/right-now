@@ -1,0 +1,37 @@
+{
+  "name": "right-now",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Right Now - the whole Solar System as it stands this second: planets, 1.5 million asteroids, comets, meteoroids and close approaches.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3130 --strictPort",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 3131 --strictPort",
+    "assets": "node scripts/assets.mjs",
+    "streams": "node scripts/streams.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/martian-mono": "^5.3.0",
+    "@fontsource-variable/onest": "^5.3.1",
+    "@fontsource-variable/unbounded": "^5.3.0",
+    "astronomy-engine": "^2.1.19",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "sharp": "^0.35.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}
