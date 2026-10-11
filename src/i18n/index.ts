@@ -72,15 +72,18 @@ export function fmtDuration(lang: Lang, ms: number): string {
   const u = ru ? { y: 'г', d: 'д', h: 'ч', m: 'мин', s: 'с' } : { y: 'y', d: 'd', h: 'h', m: 'min', s: 's' };
   if (s < 60) return `${Math.round(s)} ${u.s}`;
   if (s < 3600) return `${Math.round(s / 60)} ${u.m}`;
-  if (s < 86400) {
-    const h = Math.floor(s / 3600);
-    const m = Math.round((s - h * 3600) / 60);
+  // Round first, then split, so 9 d 23.6 h reads "10 d", not "9 d 24 h".
+  if (s < 86400 - 30) {
+    const mins = Math.round(s / 60);
+    const h = Math.floor(mins / 60);
+    const m = mins - h * 60;
     return m ? `${h} ${u.h} ${m} ${u.m}` : `${h} ${u.h}`;
   }
   if (s < 365.25 * 86400) {
-    const d = Math.floor(s / 86400);
-    const h = Math.round((s - d * 86400) / 3600);
-    return h && d < 10 ? `${d} ${u.d} ${h} ${u.h}` : `${d} ${u.d}`;
+    const hours = Math.round(s / 3600);
+    const d = Math.floor(hours / 24);
+    const h = hours - d * 24;
+    return h && d < 10 ? `${d} ${u.d} ${h} ${u.h}` : `${Math.round(s / 86400)} ${u.d}`;
   }
   return `${fmtNum(lang, s / (365.25 * 86400), 1)} ${u.y}`;
 }
