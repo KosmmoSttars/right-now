@@ -12,6 +12,8 @@ export interface LabelSpec {
   sub?: string;
   /** Hide the dot (the body is drawn big enough) but keep the name. */
   dot?: boolean;
+  /** Extra class for the marker style ('craft' draws a diamond). */
+  cls?: string;
   onClick?: () => void;
 }
 
@@ -76,6 +78,7 @@ export class Labels {
     }
     e.el.style.setProperty('--c', spec.color);
     e.el.classList.toggle('no-dot', spec.dot === false);
+    if (spec.cls) e.el.classList.add(spec.cls);
   }
 
   has(id: string): boolean {

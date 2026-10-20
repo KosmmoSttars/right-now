@@ -1,0 +1,255 @@
+{
+  "note": "Spacecraft drawn by Right Now. hz: JPL Horizons id. flybys: [body, date, half-window days, step]. visits: time spent around a body; with a step the whole stay is fetched relative to that body, without one the craft is pinned to the body outside fine data; now: [step, half-window days] of a fine body-centred track around today. Read by public/api/data.php and src/sim/craft.ts.",
+  "craft": [
+    {
+      "id": "voyager1", "hz": "-31", "name": "Voyager 1", "agency": "NASA", "launch": "1977-09-05", "wiki": "Voyager_1",
+      "about": {
+        "en": "The farthest human-made object. Flew past Jupiter and Saturn, then crossed the heliopause into interstellar space in August 2012. Still sending data from beyond 160 au.",
+        "ru": "Самый далёкий рукотворный объект. Пролетел Юпитер и Сатурн, в августе 2012 года пересёк гелиопаузу и вышел в межзвёздное пространство. Всё ещё передаёт данные из-за 160 а. е."
+      },
+      "flybys": [["jupiter", "1979-03-05", 20, "2h"], ["saturn", "1980-11-12", 20, "2h"]],
+      "nowStep": "1d"
+    },
+    {
+      "id": "voyager2", "hz": "-32", "name": "Voyager 2", "agency": "NASA", "launch": "1977-08-20", "wiki": "Voyager_2",
+      "about": {
+        "en": "The only spacecraft to visit Uranus and Neptune, after Jupiter and Saturn. Entered interstellar space in November 2018, heading south of the ecliptic.",
+        "ru": "Единственный аппарат, побывавший у Урана и Нептуна (после Юпитера и Сатурна). В ноябре 2018 года вышел в межзвёздное пространство, уходит на юг от эклиптики."
+      },
+      "flybys": [["jupiter", "1979-07-09", 20, "2h"], ["saturn", "1981-08-26", 20, "2h"], ["uranus", "1986-01-24", 20, "2h"], ["neptune", "1989-08-25", 20, "2h"]],
+      "nowStep": "1d"
+    },
+    {
+      "id": "newhorizons", "hz": "-98", "name": "New Horizons", "agency": "NASA", "launch": "2006-01-19", "wiki": "New_Horizons",
+      "about": {
+        "en": "Flew past Pluto and Charon in July 2015 and the Kuiper belt object Arrokoth on 1 January 2019, the most distant world ever visited. Now crossing the outer Kuiper belt.",
+        "ru": "Пролетел Плутон и Харон в июле 2015 года и объект пояса Койпера Аррокот 1 января 2019 года — самый далёкий из посещённых миров. Сейчас пересекает внешний пояс Койпера."
+      },
+      "flybys": [["jupiter", "2007-02-28", 20, "2h"], ["pluto", "2015-07-14", 10, "30m"]],
+      "nowStep": "1d"
+    },
+    {
+      "id": "jwst", "hz": "-170", "name": "James Webb Space Telescope", "short": "JWST", "agency": "NASA / ESA / CSA", "launch": "2021-12-25", "wiki": "James_Webb_Space_Telescope",
+      "about": {
+        "en": "The largest space telescope, observing in infrared. It circles the Sun–Earth L2 point on a halo orbit about 1.5 million km beyond the Earth.",
+        "ru": "Крупнейший космический телескоп, наблюдает в инфракрасном диапазоне. Ходит по гало-орбите вокруг точки L2 системы Солнце — Земля, в 1,5 млн км за Землёй."
+      },
+      "visits": [{ "body": "earth", "from": "2021-12-26", "step": "1d" }]
+    },
+    {
+      "id": "parker", "hz": "-96", "name": "Parker Solar Probe", "short": "Parker", "agency": "NASA", "launch": "2018-08-12", "wiki": "Parker_Solar_Probe",
+      "about": {
+        "en": "Flies through the Sun's outer corona. Since December 2024 every perihelion passes 6.1 million km from the visible surface at about 190 km/s, the fastest any human-made object has moved.",
+        "ru": "Летает сквозь внешнюю корону Солнца. С декабря 2024 года каждый перигелий проходит в 6,1 млн км от видимой поверхности на скорости около 190 км/с — быстрее любого рукотворного объекта."
+      },
+      "flybys": [["venus", "2018-10-03", 4, "30m"], ["venus", "2019-12-26", 4, "30m"], ["venus", "2020-07-11", 4, "30m"], ["venus", "2021-02-20", 4, "30m"], ["venus", "2021-10-16", 4, "30m"], ["venus", "2023-08-21", 4, "30m"], ["venus", "2024-11-06", 4, "30m"]],
+      "nowStep": "1h"
+    },
+    {
+      "id": "juno", "hz": "-61", "name": "Juno", "agency": "NASA", "launch": "2011-08-05", "wiki": "Juno_(spacecraft)",
+      "about": {
+        "en": "In a long polar orbit around Jupiter since July 2016, diving low over the cloud tops at every perijove; it has also flown past Ganymede, Europa and Io.",
+        "ru": "С июля 2016 года на вытянутой полярной орбите вокруг Юпитера, в каждом перийовии ныряет низко над облаками; пролетал также Ганимед, Европу и Ио."
+      },
+      "flybys": [["earth", "2013-10-09", 6, "30m"]],
+      "visits": [{ "body": "jupiter", "from": "2016-07-05", "step": "18h", "now": ["20m", 20] }]
+    },
+    {
+      "id": "mro", "hz": "-74", "name": "Mars Reconnaissance Orbiter", "short": "MRO", "agency": "NASA", "launch": "2005-08-12", "wiki": "Mars_Reconnaissance_Orbiter",
+      "about": {
+        "en": "Maps Mars from a low orbit (about 2 hours a revolution) with the sharpest camera ever sent to another planet, and relays data from the rovers.",
+        "ru": "Снимает Марс с низкой орбиты (виток около 2 часов) самой детальной камерой, отправленной к другой планете, и ретранслирует данные марсоходов."
+      },
+      "visits": [{ "body": "mars", "from": "2006-03-10", "now": ["2m", 2] }]
+    },
+    {
+      "id": "odyssey", "hz": "-53", "name": "2001 Mars Odyssey", "short": "Odyssey", "agency": "NASA", "launch": "2001-04-07", "wiki": "2001_Mars_Odyssey",
+      "about": {
+        "en": "In orbit around Mars since October 2001, the longest-working spacecraft at another planet. Mapped water ice under the surface.",
+        "ru": "На орбите Марса с октября 2001 года — дольше всех работающий аппарат у другой планеты. Нашёл водяной лёд под поверхностью."
+      },
+      "visits": [{ "body": "mars", "from": "2001-10-24", "now": ["2m", 2] }]
+    },
+    {
+      "id": "marsexpress", "hz": "-41", "name": "Mars Express", "agency": "ESA", "launch": "2003-06-02", "wiki": "Mars_Express",
+      "about": {
+        "en": "Europe's first planetary mission, on an elongated polar orbit around Mars since December 2003; it also passes close to the moon Phobos.",
+        "ru": "Первая планетная миссия Европы, с декабря 2003 года на вытянутой полярной орбите Марса; проходит и рядом со спутником Фобосом."
+      },
+      "visits": [{ "body": "mars", "from": "2003-12-25", "now": ["5m", 2.5] }]
+    },
+    {
+      "id": "tgo", "hz": "-143", "name": "ExoMars Trace Gas Orbiter", "short": "TGO", "agency": "ESA / Roscosmos", "launch": "2016-03-14", "wiki": "Trace_Gas_Orbiter",
+      "about": {
+        "en": "Sniffs the Martian atmosphere for trace gases such as methane from a circular two-hour orbit, and relays data from the rovers.",
+        "ru": "Ищет в атмосфере Марса малые газы вроде метана с круговой двухчасовой орбиты и ретранслирует данные марсоходов."
+      },
+      "visits": [{ "body": "mars", "from": "2016-10-19", "now": ["2m", 2] }]
+    },
+    {
+      "id": "maven", "hz": "-202", "name": "MAVEN", "agency": "NASA", "launch": "2013-11-18", "wiki": "MAVEN",
+      "about": {
+        "en": "Studied how Mars lost its atmosphere to space, from orbit since September 2014. Contact was lost in December 2025; JPL's trajectory runs to March 2026.",
+        "ru": "Изучал, как Марс терял атмосферу, с орбиты с сентября 2014 года. Связь потеряна в декабре 2025 года; траектория JPL доходит до марта 2026."
+      },
+      "visits": [{ "body": "mars", "from": "2014-09-22", "now": ["3m", 2] }]
+    },
+    {
+      "id": "hope", "hz": "-62", "name": "Emirates Mars Mission (Hope)", "short": "Hope", "agency": "UAE Space Agency", "launch": "2020-07-19", "wiki": "Emirates_Mars_Mission",
+      "about": {
+        "en": "The first Arab interplanetary mission. Its high orbit (about 55 hours) lets it watch the whole Martian weather system over a day.",
+        "ru": "Первая межпланетная миссия арабского мира. Высокая орбита (около 55 часов) позволяет видеть погоду всего Марса в течение суток."
+      },
+      "visits": [{ "body": "mars", "from": "2021-02-09", "now": ["20m", 4] }]
+    },
+    {
+      "id": "clipper", "hz": "-159", "name": "Europa Clipper", "agency": "NASA", "launch": "2024-10-14", "wiki": "Europa_Clipper",
+      "about": {
+        "en": "On its way to Jupiter (arrival 2030) to study whether the ocean under Europa's ice could support life. Uses Mars (2025) and the Earth (December 2026) as slingshots.",
+        "ru": "Летит к Юпитеру (прибытие в 2030 году), чтобы выяснить, пригоден ли для жизни океан подо льдом Европы. Разгоняется у Марса (2025) и Земли (декабрь 2026)."
+      },
+      "flybys": [["mars", "2025-03-01", 8, "30m"], ["earth", "2026-12-03", 8, "30m"]]
+    },
+    {
+      "id": "juice", "hz": "-28", "name": "Juice", "agency": "ESA", "launch": "2023-04-14", "wiki": "Jupiter_Icy_Moons_Explorer",
+      "about": {
+        "en": "Jupiter Icy Moons Explorer, bound for Ganymede, Callisto and Europa (arrival 2031). The first ever Moon–Earth double flyby in August 2024, then Venus and the Earth again.",
+        "ru": "Jupiter Icy Moons Explorer летит к Ганимеду, Каллисто и Европе (прибытие в 2031 году). В августе 2024 года — первый двойной пролёт Луны и Земли, затем Венера и снова Земля."
+      },
+      "flybys": [["earth", "2024-08-20", 8, "30m"], ["venus", "2025-08-31", 8, "30m"], ["earth", "2026-09-28", 8, "30m"], ["earth", "2029-01-17", 8, "30m"]]
+    },
+    {
+      "id": "lucy", "hz": "-49", "name": "Lucy", "agency": "NASA", "launch": "2021-10-16", "wiki": "Lucy_(spacecraft)",
+      "about": {
+        "en": "The first mission to Jupiter's Trojan asteroids, which share Jupiter's orbit. Has visited Dinkinesh (2023) and Donaldjohanson (2025); the Trojans come from 2027.",
+        "ru": "Первая миссия к троянцам Юпитера, делящим с ним орбиту. Уже посетила Динкинеш (2023) и Дональдджохансон (2025); троянцы — с 2027 года."
+      },
+      "flybys": [["earth", "2022-10-16", 8, "30m"], ["earth", "2024-12-13", 8, "30m"]]
+    },
+    {
+      "id": "psyche", "hz": "-255", "name": "Psyche", "agency": "NASA", "launch": "2023-10-13", "wiki": "Psyche_(spacecraft)",
+      "about": {
+        "en": "Flying on electric thrusters to (16) Psyche, a metal-rich asteroid that may be the exposed core of a planetesimal. Swung past Mars in May 2026; arrival 2029.",
+        "ru": "На электрических двигателях летит к (16) Психее — металлическому астероиду, возможно обнажённому ядру планетезимали. В мае 2026 года прошёл у Марса; прибытие в 2029."
+      },
+      "flybys": [["mars", "2026-05-15", 8, "30m"]]
+    },
+    {
+      "id": "bepicolombo", "hz": "-121", "name": "BepiColombo", "agency": "ESA / JAXA", "launch": "2018-10-20", "wiki": "BepiColombo",
+      "about": {
+        "en": "Two orbiters travelling together to Mercury after nine planetary flybys. JPL's trajectory shows it captured by Mercury at the end of 2026, spiralling down toward its science orbits.",
+        "ru": "Два орбитальных аппарата, летящих к Меркурию вместе, после девяти гравитационных манёвров. По траектории JPL Меркурий захватывает его в конце 2026 года, дальше спуск к научным орбитам."
+      },
+      "flybys": [["earth", "2020-04-10", 8, "30m"], ["venus", "2020-10-15", 8, "30m"], ["venus", "2021-08-10", 8, "30m"], ["mercury", "2021-10-01", 5, "20m"], ["mercury", "2022-06-23", 5, "20m"], ["mercury", "2023-06-19", 5, "20m"], ["mercury", "2024-09-04", 5, "20m"], ["mercury", "2024-12-01", 5, "20m"], ["mercury", "2025-01-08", 5, "20m"]],
+      "visits": [{ "body": "mercury", "from": "2026-11-25", "step": "2h" }]
+    },
+    {
+      "id": "solarorbiter", "hz": "-144", "name": "Solar Orbiter", "agency": "ESA / NASA", "launch": "2020-02-10", "wiki": "Solar_Orbiter",
+      "about": {
+        "en": "Photographs the Sun from inside Mercury's orbit; Venus flybys tilt its orbit step by step so it can see the Sun's poles.",
+        "ru": "Снимает Солнце изнутри орбиты Меркурия; пролёты Венеры шаг за шагом наклоняют орбиту, чтобы увидеть полюса Солнца."
+      },
+      "flybys": [["venus", "2020-12-27", 6, "30m"], ["venus", "2021-08-09", 6, "30m"], ["earth", "2021-11-27", 6, "30m"], ["venus", "2022-09-04", 6, "30m"], ["venus", "2025-02-18", 6, "30m"], ["venus", "2026-12-24", 6, "30m"]],
+      "nowStep": "3h"
+    },
+    {
+      "id": "hera", "hz": "-91", "name": "Hera", "agency": "ESA", "launch": "2024-10-07", "wiki": "Hera_(space_mission)",
+      "about": {
+        "en": "Going to the binary asteroid Didymos to measure the crater NASA's DART impact left on its moon Dimorphos in 2022. JPL's trajectory runs up to the arrival.",
+        "ru": "Летит к двойному астероиду Дидим, чтобы измерить след удара DART по его спутнику Диморфу в 2022 году. Траектория JPL доходит до прибытия."
+      },
+      "flybys": [["mars", "2025-03-12", 6, "30m"]]
+    },
+    {
+      "id": "osiris", "hz": "-64", "name": "OSIRIS-REx / OSIRIS-APEX", "short": "OSIRIS-APEX", "agency": "NASA", "launch": "2016-09-08", "wiki": "OSIRIS-REx",
+      "about": {
+        "en": "Brought a sample of asteroid Bennu back to the Earth in September 2023. Renamed OSIRIS-APEX, it is now on its way to Apophis, arriving just after that asteroid's close pass by the Earth in April 2029.",
+        "ru": "В сентябре 2023 года доставил на Землю образец астероида Бенну. Переименован в OSIRIS-APEX и летит к Апофису, прибудет сразу после его сближения с Землёй в апреле 2029."
+      },
+      "flybys": [["earth", "2017-09-22", 6, "30m"], ["earth", "2023-09-24", 6, "30m"], ["earth", "2025-09-23", 6, "30m"], ["earth", "2027-03-16", 6, "30m"]]
+    },
+    {
+      "id": "hayabusa2", "hz": "-37", "name": "Hayabusa2", "agency": "JAXA", "launch": "2014-12-03", "wiki": "Hayabusa2",
+      "about": {
+        "en": "Returned samples of asteroid Ryugu in December 2020, then flew on in an extended mission toward two more small asteroids.",
+        "ru": "В декабре 2020 года вернул образцы астероида Рюгу и полетел дальше, к ещё двум маленьким астероидам."
+      },
+      "flybys": [["earth", "2020-12-05", 6, "30m"]]
+    },
+    {
+      "id": "soho", "hz": "-21", "name": "SOHO", "agency": "ESA / NASA", "launch": "1995-12-02", "wiki": "Solar_and_Heliospheric_Observatory",
+      "about": {
+        "en": "Has watched the Sun from the L1 point, 1.5 million km sunward of the Earth, since 1996, and found over 5000 comets along the way.",
+        "ru": "С 1996 года следит за Солнцем из точки L1, в 1,5 млн км от Земли в сторону Солнца, и попутно открыл более 5000 комет."
+      },
+      "visits": [{ "body": "earth", "from": "1996-02-14", "step": "2d" }]
+    },
+    {
+      "id": "pioneer10", "hz": "-23", "name": "Pioneer 10", "agency": "NASA", "launch": "1972-03-03", "wiki": "Pioneer_10", "historic": true,
+      "about": {
+        "en": "The first spacecraft to cross the asteroid belt and fly past Jupiter (December 1973). The last signal came in January 2003; it coasts on toward Aldebaran.",
+        "ru": "Первый аппарат, пересёкший пояс астероидов и пролетевший Юпитер (декабрь 1973). Последний сигнал пришёл в январе 2003 года; летит дальше в сторону Альдебарана."
+      },
+      "flybys": [["jupiter", "1973-12-04", 20, "2h"]]
+    },
+    {
+      "id": "pioneer11", "hz": "-24", "name": "Pioneer 11", "agency": "NASA", "launch": "1973-04-06", "wiki": "Pioneer_11", "historic": true,
+      "about": {
+        "en": "Flew past Jupiter (1974) and was the first to reach Saturn (September 1979). Contact ended in 1995.",
+        "ru": "Пролетел Юпитер (1974) и первым добрался до Сатурна (сентябрь 1979). Связь прекратилась в 1995 году."
+      },
+      "flybys": [["jupiter", "1974-12-03", 20, "2h"], ["saturn", "1979-09-01", 20, "2h"]]
+    },
+    {
+      "id": "galileo", "hz": "-77", "name": "Galileo", "agency": "NASA", "launch": "1989-10-18", "wiki": "Galileo_(spacecraft)", "historic": true,
+      "about": {
+        "en": "The first Jupiter orbiter (1995–2003); dropped a probe into Jupiter's atmosphere and found signs of an ocean under Europa's ice. Ended by diving into Jupiter on 21 September 2003.",
+        "ru": "Первый спутник Юпитера (1995–2003): сбросил зонд в его атмосферу и нашёл признаки океана подо льдом Европы. Завершил миссию, войдя в Юпитер 21 сентября 2003 года."
+      },
+      "flybys": [["venus", "1990-02-10", 8, "1h"], ["earth", "1990-12-08", 8, "1h"], ["earth", "1992-12-08", 8, "1h"]],
+      "visits": [{ "body": "jupiter", "from": "1995-12-07", "to": "2003-09-21", "step": "12h" }]
+    },
+    {
+      "id": "cassini", "hz": "-82", "name": "Cassini", "agency": "NASA / ESA / ASI", "launch": "1997-10-15", "wiki": "Cassini–Huygens", "historic": true,
+      "about": {
+        "en": "Orbited Saturn for 13 years (2004–2017), landed the Huygens probe on Titan and found the geysers of Enceladus. Ended by plunging into Saturn on 15 September 2017.",
+        "ru": "13 лет на орбите Сатурна (2004–2017): посадил зонд «Гюйгенс» на Титан и открыл гейзеры Энцелада. Завершил миссию, войдя в атмосферу Сатурна 15 сентября 2017 года."
+      },
+      "flybys": [["venus", "1998-04-26", 8, "1h"], ["venus", "1999-06-24", 8, "1h"], ["earth", "1999-08-18", 8, "1h"], ["jupiter", "2000-12-30", 20, "2h"]],
+      "visits": [{ "body": "saturn", "from": "2004-07-01", "to": "2017-09-15", "step": "15h" }]
+    },
+    {
+      "id": "rosetta", "hz": "-226", "name": "Rosetta", "agency": "ESA", "launch": "2004-03-02", "wiki": "Rosetta_(spacecraft)", "historic": true,
+      "about": {
+        "en": "Escorted comet 67P/Churyumov–Gerasimenko for two years and landed Philae on it (November 2014). Ended with a gentle touchdown on the comet on 30 September 2016.",
+        "ru": "Два года сопровождал комету Чурюмова — Герасименко и посадил на неё «Филы» (ноябрь 2014). Завершил миссию мягкой посадкой на комету 30 сентября 2016 года."
+      },
+      "flybys": [["earth", "2005-03-04", 8, "1h"], ["mars", "2007-02-25", 8, "1h"], ["earth", "2007-11-13", 8, "1h"], ["earth", "2009-11-13", 8, "1h"]]
+    },
+    {
+      "id": "messenger", "hz": "-236", "name": "MESSENGER", "agency": "NASA", "launch": "2004-08-03", "wiki": "MESSENGER", "historic": true,
+      "about": {
+        "en": "The first Mercury orbiter (2011–2015), after six planetary flybys. Found water ice in polar craters; ended by crashing into Mercury on 30 April 2015.",
+        "ru": "Первый спутник Меркурия (2011–2015), после шести гравитационных манёвров. Нашёл водяной лёд в полярных кратерах; завершил миссию падением на Меркурий 30 апреля 2015 года."
+      },
+      "flybys": [["earth", "2005-08-02", 8, "1h"], ["venus", "2006-10-24", 8, "1h"], ["venus", "2007-06-05", 8, "1h"], ["mercury", "2008-01-14", 5, "20m"], ["mercury", "2008-10-06", 5, "20m"], ["mercury", "2009-09-29", 5, "20m"]],
+      "visits": [{ "body": "mercury", "from": "2011-03-18", "to": "2015-04-30" }]
+    },
+    {
+      "id": "dawn", "hz": "-203", "name": "Dawn", "agency": "NASA", "launch": "2007-09-27", "wiki": "Dawn_(spacecraft)", "historic": true,
+      "about": {
+        "en": "The only spacecraft to orbit two other worlds: Vesta (2011–2012) and Ceres (from 2015). Out of fuel since 2018, it still circles Ceres.",
+        "ru": "Единственный аппарат, побывавший на орбитах двух миров: Весты (2011–2012) и Цереры (с 2015). Топливо кончилось в 2018 году, но он по-прежнему кружит у Цереры."
+      },
+      "flybys": [["mars", "2009-02-17", 8, "1h"]]
+    },
+    {
+      "id": "ulysses", "hz": "-55", "name": "Ulysses", "agency": "ESA / NASA", "launch": "1990-10-06", "wiki": "Ulysses_(spacecraft)", "historic": true,
+      "about": {
+        "en": "Used Jupiter's gravity (1992) to leave the ecliptic and fly over the Sun's poles, three times. Switched off in June 2009.",
+        "ru": "С помощью Юпитера (1992) вышел из плоскости эклиптики и трижды пролетел над полюсами Солнца. Выключен в июне 2009 года."
+      },
+      "flybys": [["jupiter", "1992-02-08", 20, "2h"]]
+    }
+  ]
+}

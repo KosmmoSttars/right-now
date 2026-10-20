@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { fmtDuration, fmtInt, fmtShortDate, fmtSig, useT } from '../i18n';
 import { DEG, positionAt } from '../sim/kepler';
+import { craftFix, craftLabel } from '../sim/craft';
 import { LD_AU, SHOWERS, lonAhead, showerActive } from '../sim/live';
-import { astroTime, bodyPosition } from '../sim/planets';
-import { jdTT } from '../sim/time';
-import { replayMeteors, selectAndFly } from '../state/controller';
+import { BODY_BY_ID, KM_PER_AU, astroTime, bodyPosition, type BodyId } from '../sim/planets';
+import { jdTT, msFromJdTT } from '../sim/time';
+import { replayMeteors, selectAndFly, watchFlyby } from '../state/controller';
 import { useApp } from '../state/store';
 
 const HOUR = 3_600_000;
@@ -17,6 +18,9 @@ export function EventsPanel() {
   const meteors = useApp((s) => s.meteors);
   const fireballs = useApp((s) => s.fireballs);
   const live = useApp((s) => s.live);
+  const craft = useApp((s) => s.craft);
+  const craftRev = useApp((s) => s.craftRev);
+  const allFlybys = useApp((s) => s.flybys);
   // Coarse clock for the heavier summaries: once a simulated minute is plenty.
   const minute = Math.floor(simMs / 60_000);
 
@@ -49,6 +53,23 @@ export function EventsPanel() {
       .sort((a, b) => a.mag - b.mag)
       .slice(0, 4);
   }, [live, minute, earth]);
+
+  // Spacecraft: the next planetary flybys and the farthest ones, from their trajectories.
+  const jdNow = jdTT(minute * 60_000);
+  const flybys = allFlybys.filter((f) => f.jd > jdNow - 2 && f.jd < jdNow + 800).slice(0, 4);
+  const far = useMemo(() => {
+    const at = astroTime(minute * 60_000);
+    const cache = new Map<BodyId, [number, number, number]>();
+    const bodyAt = (id: BodyId) => cache.get(id) ?? (cache.set(id, bodyPosition(id, at)), cache.get(id)!);
+    return craft
+      .map((c) => {
+        const f = craftFix(c, jdNow, bodyAt);
+        return f ? { id: c.meta.id, label: craftLabel(c.meta), d: Math.hypot(f.pos[0] - earth[0], f.pos[1] - earth[1], f.pos[2] - earth[2]) } : null;
+      })
+      .filter((x): x is { id: string; label: string; d: number } => !!x && x.d > 20)
+      .sort((a, b) => b.d - a.d)
+      .slice(0, 4);
+  }, [craft, craftRev, minute, earth, jdNow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scout = (live?.scout ?? []).slice().sort((a, b) => b[2] - a[2]).slice(0, 3);
   const risk = (live?.sentry ?? []).slice().sort((a, b) => (b[3] ?? -99) - (a[3] ?? -99)).slice(0, 3);
@@ -92,6 +113,52 @@ export function EventsPanel() {
           </>
         )}
       </section>
+
+      {(flybys.length > 0 || far.length > 0) && (
+        <section>
+          <h2>{t('evCraft')}</h2>
+          {flybys.length > 0 && (
+            <>
+              <h3>{t('evFlybys')}</h3>
+              <ul className="rows">
+                {flybys.map((f) => {
+                  const c = craft.find((x) => x.meta.id === f.id);
+                  const ms = msFromJdTT(f.jd);
+                  const alt = f.distAu * KM_PER_AU - BODY_BY_ID[f.body].radiusKm;
+                  return (
+                    <li key={f.id + f.jd}>
+                      <button className="row" onClick={() => watchFlyby(f.id, ms)}>
+                        <span className="r-main">{c ? craftLabel(c.meta) : f.id}</span>
+                        <span className="r-num">{when(ms)}</span>
+                        <span className="r-sub">
+                          {t('flybyRow', { body: t(f.body), alt: `${fmtInt(lang, alt)} ${t('km')}` })} · {fmtSig(lang, (f.speed * KM_PER_AU) / 86400, 3)} {t('kms')}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="note">{t('evFlybysNote')}</p>
+            </>
+          )}
+          {far.length > 0 && (
+            <>
+              <h3>{t('evFarthest')}</h3>
+              <ul className="rows">
+                {far.map((f) => (
+                  <li key={f.id}>
+                    <button className="row" onClick={() => selectAndFly({ kind: 'craft', id: f.id })}>
+                      <span className="r-main">{f.label}</span>
+                      <span className="r-num">{fmtSig(lang, f.d, 3)} {t('au')}</span>
+                      <span className="r-sub">{t('signalTime')} {fmtDuration(lang, ((f.d * KM_PER_AU) / 299_792.458) * 1000)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       <section>
         <h2>{t('evShowers')}</h2>

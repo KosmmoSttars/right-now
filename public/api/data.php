@@ -9,6 +9,8 @@
 //   ?set=search&q=eros       up to 20 matches: [[index, name], ...]
 //   ?set=live                close approaches, fireballs, Sentry, Scout, comets, meteors
 //   ?set=track&des=2026+TP35 heliocentric vectors from JPL Horizons around a close approach
+//   ?set=craft               spacecraft index: coverage and a fine track around today
+//   ?set=craftfile&id=juno   every JPL Horizons table of one spacecraft
 //   ?set=status              cache ages (deploy check)
 
 declare(strict_types=1);
@@ -607,45 +609,254 @@ function ensure_track(string $dir, string $des, float $jd): ?string
     if (is_file($file) && time() - filemtime($file) < 2 * 86400) return $file;
     $failed = "$file.failed";
     if (is_file($failed) && time() - filemtime($failed) < 900) return is_file($file) ? $file : null;
-    $lock = fopen("$dir/horizons.lock", 'c');
-    if (!$lock) return null;
-    $t0 = microtime(true);
-    while (!flock($lock, LOCK_EX | LOCK_NB)) {
-        if (microtime(true) - $t0 > 40) { fclose($lock); return is_file($file) ? $file : null; }
-        usleep(200000);
-    }
-    try {
+    $got = horizons_serial($dir, 40, static function () use ($dir, $des, $jd, $file, $failed): ?string {
         clearstatcache();
         if (is_file($file) && time() - filemtime($file) < 2 * 86400) return $file; // fetched while we waited
         $json = build_track($dir, $des, $jd);
         if ($json === null) {
             touch($failed);
-            return is_file($file) ? $file : null;
+            return null;
         }
         write_atomic($file, gzencode($json, 9));
         @unlink($failed);
-        usleep(300000);
         return $file;
+    });
+    if (random_int(0, 20) === 0) {
+        foreach (glob("$dir/track-*") ?: [] as $f) if (time() - filemtime($f) > 14 * 86400) unlink($f);
+    }
+    return $got ?? (is_file($file) ? $file : null);
+}
+
+/**
+ * Runs $fn while holding the Horizons lock (Horizons turns away parallel requests,
+ * so every call to it from this site goes one at a time). Null if the lock could not
+ * be had within $wait seconds.
+ */
+function horizons_serial(string $dir, float $wait, callable $fn): mixed
+{
+    $lock = fopen("$dir/horizons.lock", 'c');
+    if (!$lock) return null;
+    $t0 = microtime(true);
+    while (!flock($lock, LOCK_EX | LOCK_NB)) {
+        if (microtime(true) - $t0 > $wait) { fclose($lock); return null; }
+        usleep(200000);
+    }
+    try {
+        return $fn();
     } finally {
+        usleep(300000); // a breath between requests
         flock($lock, LOCK_UN);
         fclose($lock);
-        if (random_int(0, 20) === 0) {
-            foreach (glob("$dir/track-*") ?: [] as $f) if (time() - filemtime($f) > 14 * 86400) unlink($f);
+    }
+}
+
+// ------------------------------------------------------------------ spacecraft
+
+const HZ_CENTER = ['sun' => 10, 'mercury' => 199, 'venus' => 299, 'earth' => 399, 'mars' => 499,
+                   'jupiter' => 599, 'saturn' => 699, 'uranus' => 799, 'neptune' => 899, 'pluto' => 999];
+const CRAFT_END = 2465424.5;    // 2038-01-01: no point predicting active missions further
+const CRAFT_ROWS = 2000;        // intervals of a whole-mission (cruise) table
+
+function craft_config(): array
+{
+    $j = json_decode((string) @file_get_contents(__DIR__ . '/../data/craft.json'), true);
+    return is_array($j['craft'] ?? null) ? $j['craft'] : [];
+}
+
+function jd_from_iso(string $date): float
+{
+    [$y, $m, $d] = array_map('intval', explode('-', $date));
+    return jd_from_ymd($y, $m, $d);
+}
+
+/** "A.D. 1977-SEP-05 13:59:24.3830" (from a Horizons message) → JD. */
+function jd_from_horizons(string $s): ?float
+{
+    if (!preg_match('/(\d{4})-([A-Z]{3})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)/i', $s, $m)) return null;
+    $mon = array_search(strtoupper($m[2]), ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], true);
+    if ($mon === false) return null;
+    return jd_from_ymd((int) $m[1], $mon + 1, (int) $m[3] + ((int) $m[4] + ((int) $m[5] + (float) $m[6] / 60) / 60) / 24);
+}
+
+/** Step size in days of a Horizons step string ("6h", "2m", "1d"). */
+function step_days(string $step): float
+{
+    if (!preg_match('/^(\d+(?:\.\d+)?)([dhm])$/', $step, $m)) return 1.0;
+    return (float) $m[1] / ['d' => 1, 'h' => 24, 'm' => 1440][$m[2]];
+}
+
+/**
+ * Evenly spaced state vectors of a spacecraft relative to a body, ecliptic J2000,
+ * AU and AU/day. $step is a Horizons step ("1h") or null for CRAFT_ROWS intervals.
+ * The span is clipped to the ephemeris when Horizons says it is out of range.
+ * Returns ['t0' => JD, 'dt' => days, 'rows' => [[x, y, z, vx, vy, vz], ...]] or null.
+ */
+function horizons_vectors(string $hz, string $center, float $start, float $stop, ?string $step): ?array
+{
+    for ($try = 0; $try < 4; $try++) {
+        if ($stop - $start < 1 / 24) return null;
+        $n = $step === null ? CRAFT_ROWS : (int) ceil(($stop - $start) / step_days($step));
+        if ($n > 12000) $step = null; // keep tables bounded
+        $q = http_build_query([
+            'format' => 'json', 'COMMAND' => "'$hz'", 'OBJ_DATA' => 'NO', 'MAKE_EPHEM' => 'YES',
+            'EPHEM_TYPE' => 'VECTORS', 'CENTER' => "'500@" . HZ_CENTER[$center] . "'", 'REF_PLANE' => 'ECLIPTIC',
+            'VEC_TABLE' => '2', 'OUT_UNITS' => 'AU-D', 'CSV_FORMAT' => 'YES', 'VEC_LABELS' => 'NO',
+            'START_TIME' => "'JD" . number_format($start, 6, '.', '') . "'",
+            'STOP_TIME' => "'JD" . number_format($stop, 6, '.', '') . "'",
+            'STEP_SIZE' => "'" . ($step ?? (string) CRAFT_ROWS) . "'",
+        ]);
+        $text = http_get("https://ssd.jpl.nasa.gov/api/horizons.api?$q", null, 90);
+        $j = $text !== null ? json_decode($text, true) : null;
+        $res = is_array($j) ? (string) ($j['result'] ?? '') : '';
+        if ($res === '') return null;
+        if (preg_match('/No ephemeris for target.*?prior to (.*?)TDB/s', $res, $m) && ($jd = jd_from_horizons($m[1])) !== null) {
+            $start = $jd + 1 / 1440;
+            continue;
+        }
+        if (preg_match('/No ephemeris for target.*?after (.*?)TDB/s', $res, $m) && ($jd = jd_from_horizons($m[1])) !== null) {
+            $stop = $jd - 1 / 1440;
+            continue;
+        }
+        if (!preg_match('/\$\$SOE(.*)\$\$EOE/s', $res, $m)) return null;
+        $t = [];
+        $rows = [];
+        // Body-centred tables need metres, heliocentric ones a few hundred metres.
+        $dp = $center === 'sun' ? 9 : 11;
+        foreach (preg_split('/\r?\n/', trim($m[1])) as $l) {
+            $f = array_map('trim', explode(',', $l));
+            if (count($f) < 8) continue;
+            $t[] = (float) $f[0];
+            $rows[] = [round((float) $f[2], $dp), round((float) $f[3], $dp), round((float) $f[4], $dp),
+                       round((float) $f[5], $dp + 2), round((float) $f[6], $dp + 2), round((float) $f[7], $dp + 2)];
+        }
+        if (count($rows) < 2) return null;
+        return ['t0' => $t[0], 'dt' => ($t[count($t) - 1] - $t[0]) / (count($t) - 1), 'rows' => $rows];
+    }
+    return null;
+}
+
+/** Every table the spacecraft layer needs, with how long each stays fresh. */
+function craft_jobs(array $craft, float $nowJd): array
+{
+    $jobs = [];
+    foreach ($craft as $c) {
+        $id = $c['id'];
+        $historic = !empty($c['historic']);
+        $launch = jd_from_iso($c['launch']) - 1;
+        $jobs["$id-cruise"] = ['craft' => $c, 'center' => 'sun', 'start' => $launch,
+            'stop' => $historic ? CRAFT_END + 36525 : CRAFT_END, 'step' => null,
+            'ttl' => ($historic ? 180 : 7) * 86400, 'kind' => 'cruise'];
+        foreach ($c['flybys'] ?? [] as $k => [$body, $date, $half, $step]) {
+            $jd = jd_from_iso($date);
+            $jobs["$id-fb$k"] = ['craft' => $c, 'center' => $body, 'start' => $jd - $half, 'stop' => $jd + $half,
+                'step' => $step, 'ttl' => ($jd < $nowJd - 30 ? 180 : 7) * 86400, 'kind' => 'flyby'];
+        }
+        foreach ($c['visits'] ?? [] as $k => $v) {
+            $from = jd_from_iso($v['from']);
+            $to = isset($v['to']) ? jd_from_iso($v['to']) : CRAFT_END;
+            if (isset($v['step'])) {
+                $jobs["$id-v$k"] = ['craft' => $c, 'center' => $v['body'], 'start' => $from, 'stop' => $to,
+                    'step' => $v['step'], 'ttl' => ($to < $nowJd ? 180 : 7) * 86400, 'kind' => 'visit'];
+            }
+        }
+        if ($historic) continue;
+        // A fine track around today: relative to the body it orbits, or to the Sun.
+        $now = null;
+        foreach ($c['visits'] ?? [] as $v) {
+            $from = jd_from_iso($v['from']);
+            $to = isset($v['to']) ? jd_from_iso($v['to']) : INF;
+            if (isset($v['now']) && $nowJd > $from && $nowJd < $to) $now = [$v['body'], $v['now'][0], (float) $v['now'][1]];
+        }
+        $now ??= ['sun', $c['nowStep'] ?? '6h', 45.0];
+        $jobs["$id-now"] = ['craft' => $c, 'center' => $now[0], 'start' => $nowJd - $now[2], 'stop' => $nowJd + $now[2],
+            'step' => $now[1], 'ttl' => 86400, 'kind' => 'now'];
+    }
+    return $jobs;
+}
+
+/**
+ * Fetches stale spacecraft tables until the work budget runs out (one Horizons call
+ * at a time), then rebuilds the files the client reads:
+ *   craft.json.gz          index: per craft its coverage and the fine "now" track
+ *   craft-<id>.json.gz     every table of one craft
+ * Each table is ['c' => centre body, 'k' => kind, 't0', 'dt', 'rows'].
+ * Returns true when no table is stale any more.
+ */
+function build_craft(string $dir): bool
+{
+    set_time_limit(PHP_SAPI === 'cli' ? 0 : 95);
+    $craft = craft_config();
+    if (!$craft) return false;
+    @mkdir("$dir/craft", 0755, true);
+    $nowJd = time() / 86400 + 2440587.5;
+    $jobs = craft_jobs($craft, $nowJd);
+    $changed = !is_file("$dir/craft.json.gz");
+    $pending = 0;
+    foreach ($jobs as $key => $job) {
+        $file = "$dir/craft/$key.json";
+        if (is_file($file) && time() - filemtime($file) < $job['ttl']) continue;
+        $failed = "$file.failed";
+        if (is_file($failed) && time() - filemtime($failed) < 3600) continue;
+        if ($job['kind'] === 'now' && is_file($cf = "$dir/craft/{$job['craft']['id']}-cruise.json")) {
+            $cr = json_decode((string) file_get_contents($cf), true);
+            if ($cr['t0'] + $cr['dt'] * (count($cr['rows']) - 1) < $job['start']) continue; // mission over
+        }
+        if (microtime(true) > deadline() - 15) { $pending++; continue; }
+        $t = horizons_serial($dir, 30, static fn () => horizons_vectors($job['craft']['hz'], $job['center'], $job['start'], $job['stop'], $job['step']));
+        if ($t === null) {
+            touch($failed);
+            if (PHP_SAPI === 'cli') fwrite(STDERR, "  $key: failed\n");
+            continue;
+        }
+        write_atomic($file, json_out(['c' => $job['center'], 'k' => $job['kind']] + $t));
+        @unlink($failed);
+        $changed = true;
+        if (PHP_SAPI === 'cli') fwrite(STDERR, sprintf("  %s: %d rows\n", $key, count($t['rows'])));
+    }
+    if ($changed) {
+        $index = [];
+        foreach ($craft as $c) {
+            $tables = [];
+            foreach ($jobs as $key => $job) {
+                if ($job['craft']['id'] !== $c['id'] || !is_file("$dir/craft/$key.json")) continue;
+                $tables[] = json_decode((string) file_get_contents("$dir/craft/$key.json"), true);
+            }
+            $cruise = array_values(array_filter($tables, static fn ($t) => $t['k'] === 'cruise'))[0] ?? null;
+            if (!$cruise) continue;
+            write_atomic("$dir/craft-{$c['id']}.json.gz", gzencode(json_out(['id' => $c['id'], 'tables' => $tables]), 9));
+            $last = $cruise['t0'] + $cruise['dt'] * (count($cruise['rows']) - 1);
+            // The index carries only two days either side of now: enough to place
+            // every craft at once; the rest comes with the craft's own file.
+            $now = array_values(array_filter($tables, static fn ($t) => $t['k'] === 'now'))[0] ?? null;
+            if ($now) {
+                $k0 = max(0, (int) floor(($nowJd - 2 - $now['t0']) / $now['dt']));
+                $k1 = min(count($now['rows']) - 1, (int) ceil(($nowJd + 2 - $now['t0']) / $now['dt']));
+                $now = $k1 - $k0 >= 1
+                    ? ['t0' => $now['t0'] + $k0 * $now['dt'], 'rows' => array_slice($now['rows'], $k0, $k1 - $k0 + 1)] + $now
+                    : null;
+            }
+            $index[$c['id']] = ['cov' => [$cruise['t0'], $last], 'now' => $now];
+        }
+        write_atomic("$dir/craft.json.gz", gzencode(json_out(['v' => 1, 'builtAt' => gmdate('Y-m-d\TH:i:s\Z'), 'craft' => $index]), 9));
+        foreach (glob("$dir/craft-*.json.gz") ?: [] as $f) {
+            if (!isset($index[substr(basename($f), 6, -8)])) unlink($f);
         }
     }
+    return $pending === 0;
 }
 
 // ------------------------------------------------------------------ routing
 
 $dir = cache_dir();
 
-// CLI: `php data.php asteroids|live` rebuilds a cache in the foreground (deploy, cron).
+// CLI: `php data.php asteroids|live|craft` rebuilds a cache in the foreground (deploy, cron).
 if (PHP_SAPI === 'cli') {
     $job = $argv[1] ?? '';
     $t = microtime(true);
     $ok = match ($job) {
         'asteroids' => with_lock($dir, 'asteroids', static fn () => build_asteroids($dir)),
         'live' => with_lock($dir, 'live', static fn () => build_live($dir)),
+        'craft' => with_lock($dir, 'craft', static fn () => build_craft($dir)),
         default => false,
     };
     fwrite(STDERR, sprintf("%s: %s in %.1f s, peak %d MB
@@ -663,6 +874,7 @@ switch ($set) {
         echo json_out([
             'asteroids' => $v,
             'live' => is_file("$dir/live.json.gz") ? gmdate('c', (int) filemtime("$dir/live.json.gz")) : null,
+            'craft' => is_file("$dir/craft.json.gz") ? gmdate('c', (int) filemtime("$dir/craft.json.gz")) : null,
         ]);
         exit;
 
@@ -706,6 +918,28 @@ switch ($set) {
         if (time() - filemtime($file) > LIVE_TTL) {
             after_response(static fn () => with_lock($dir, 'live', static fn () => build_live($dir)));
         }
+        exit;
+
+    case 'craft':
+        $file = "$dir/craft.json.gz";
+        if (!is_file($file)) {
+            header('Retry-After: 90');
+            http_response_code(503);
+            after_response(static fn () => with_lock($dir, 'craft', static fn () => build_craft($dir)));
+            exit;
+        }
+        send_gz($file, 'application/json; charset=utf-8', 600);
+        // Daily tracks and weekly predictions: refresh a slice at a time.
+        if (time() - filemtime($file) > 6 * 3600 || random_int(0, 30) === 0) {
+            after_response(static fn () => with_lock($dir, 'craft', static fn () => build_craft($dir)));
+        }
+        exit;
+
+    case 'craftfile':
+        $id = preg_replace('/[^a-z0-9]/', '', (string) ($_GET['id'] ?? ''));
+        $file = "$dir/craft-$id.json.gz";
+        if ($id === '' || !is_file($file)) fail(404);
+        send_gz($file, 'application/json; charset=utf-8', 3600);
         exit;
 
     case 'track':

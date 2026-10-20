@@ -13,12 +13,14 @@ import type { SimClock } from '../sim/clock';
 import { orbitFromTrue, orbitPath, periodDays, positionAt, type Orbit, type Vec3 } from '../sim/kepler';
 import { SHOWERS, loadTrack, showerActive, trackPosition, type Approach, type Fireball, type Meteor, type StreamsFile, type Track } from '../sim/live';
 import { BODIES, BODY_BY_ID, KM_PER_AU, astroTime, bodyOrbitPath, bodyOrientation, bodyPosition, orbitalPeriodDays, type BodyId } from '../sim/planets';
-import { jdTT } from '../sim/time';
+import { craftFix, type Craft } from '../sim/craft';
+import { jdTT, msFromJdTT } from '../sim/time';
 import { targetKey, type Target, type Telemetry } from '../state/store';
 import type { PickRequest, PickResponse } from '../workers/pick.worker';
 import { Asteroids } from './Asteroids';
 import { Bodies } from './Bodies';
 import { Comets } from './Comets';
+import { CraftLayer } from './CraftLayer';
 import { Labels } from './Labels';
 import { OrbitPoints, type OrbitPoint } from './OrbitPoints';
 import { Polyline } from './Polyline';
@@ -74,7 +76,10 @@ export class Engine {
   private selected: Target | null = null;
   private fly: { from: Vec3; t0: number; dur: number; d0: number; d1: number } | null = null;
   private bodyPos = new Map<BodyId, Vec3>(BODIES.map((b) => [b.id, [0, 0, 0] as Vec3]));
-  private layers = { orbits: true, labels: true, comets: true, streams: true, meteors: true, approaches: true };
+  private layers = { orbits: true, labels: true, comets: true, streams: true, meteors: true, approaches: true, craft: true };
+  readonly craft: CraftLayer;
+  /** JD of the frame whose body positions are in bodyPos. */
+  private frameJd = NaN;
 
   private width = 1;
   private height = 1;
@@ -153,6 +158,8 @@ export class Engine {
     this.controls.addEventListener('change', () => (this.lastActive = performance.now()));
 
     this.labels = new Labels(container);
+    this.craft = new CraftLayer(this.labels, (id) => this.selectAndFly({ kind: 'craft', id }));
+    this.scene.add(this.craft.group);
     for (const b of BODIES) {
       this.labels.upsert({
         id: `body:${b.id}`,
@@ -269,6 +276,10 @@ export class Engine {
     this.surface.setMeteors(list);
   }
 
+  setCraft(list: Craft[]): void {
+    this.craft.setCraft(list);
+  }
+
   setFireballs(list: Fireball[]): void {
     this.surface.setFireballs(list);
   }
@@ -286,8 +297,9 @@ export class Engine {
     }
   }
 
-  setLayers(l: { orbits: boolean; labels: boolean; asteroids: boolean[]; comets: boolean; streams: boolean; meteors: boolean; approaches: boolean }): void {
-    this.layers = { orbits: l.orbits, labels: l.labels, comets: l.comets, streams: l.streams, meteors: l.meteors, approaches: l.approaches };
+  setLayers(l: { orbits: boolean; labels: boolean; asteroids: boolean[]; comets: boolean; streams: boolean; meteors: boolean; approaches: boolean; craft: boolean }): void {
+    this.layers = { orbits: l.orbits, labels: l.labels, comets: l.comets, streams: l.streams, meteors: l.meteors, approaches: l.approaches, craft: l.craft };
+    this.craft.visible = l.craft;
     this.asteroids?.setMask(l.asteroids);
     this.comets.group.visible = l.comets;
     this.streams.points.visible = l.streams;
@@ -326,7 +338,23 @@ export class Engine {
         const tr = this.tracks.get(t.des);
         return tr ? trackPosition(tr, jd, out) : null;
       }
+      case 'craft': {
+        const c = this.craft.get(t.id);
+        return c ? craftFix(c, jd, this.bodyAtJd(jd), out)?.pos ?? null : null;
+      }
     }
+  }
+
+  /** Body positions at any jd: this frame's when it matches, computed otherwise. */
+  bodyAtJd(jd: number): (id: BodyId) => Vec3 {
+    if (jd === this.frameJd) return (id) => this.bodyPos.get(id)!;
+    const at = astroTime(msFromJdTT(jd));
+    const cache = new Map<BodyId, Vec3>();
+    return (id) => {
+      let p = cache.get(id);
+      if (!p) cache.set(id, (p = bodyPosition(id, at)));
+      return p;
+    };
   }
 
   asteroidOrbit(index: number): Orbit | null {
@@ -337,7 +365,7 @@ export class Engine {
   }
 
   private targetRadius(t: Target): number {
-    return t.kind === 'body' ? BODY_BY_ID[t.id].radiusKm / KM_PER_AU : 2e-6;
+    return t.kind === 'body' ? BODY_BY_ID[t.id].radiusKm / KM_PER_AU : t.kind === 'craft' ? 1e-9 : 2e-6;
   }
 
   private defaultDistance(t: Target): number {
@@ -349,6 +377,20 @@ export class Engine {
       const a = this.approaches.find((x) => x.des === t.des);
       return Math.max(0.0012, (a?.distAu ?? 0.01) * 2.2);
     }
+    if (t.kind === 'craft') {
+      // Near a planet: frame the craft with the planet; in cruise: show its path.
+      const jd = jdTT(this.clock.now());
+      const c = this.craft.get(t.id);
+      const bodyAt = this.bodyAtJd(jd);
+      const fix = c ? craftFix(c, jd, bodyAt) : null;
+      if (fix?.pinned) return (BODY_BY_ID[fix.center].radiusKm / KM_PER_AU) * 5;
+      if (fix && fix.center !== 'sun') {
+        const b = bodyAt(fix.center);
+        const d = Math.hypot(fix.pos[0] - b[0], fix.pos[1] - b[1], fix.pos[2] - b[2]);
+        return Math.max((BODY_BY_ID[fix.center].radiusKm / KM_PER_AU) * 4, Math.min(d * 2.6, 0.08));
+      }
+      return 0.6;
+    }
     return t.kind === 'comet' ? 0.25 : 0.06;
   }
 
@@ -357,6 +399,7 @@ export class Engine {
     this.selOrbit = null;
     this.selLine.clear();
     this.labels.selectedId = t ? targetKey(t) : null;
+    this.craft.selectedId = t?.kind === 'craft' ? t.id : null;
     if (t && (t.kind === 'asteroid' || t.kind === 'comet')) {
       const o = t.kind === 'asteroid' ? this.asteroidOrbit(t.index) : this.comets.list[t.index]?.orbit ?? null;
       if (o) {
@@ -490,6 +533,15 @@ export class Engine {
       }
     }
     if (best) return this.select(best);
+    for (const [id, p] of this.craft.all()) {
+      const s = this.project(this.relThree(p, this.v3));
+      const d = Math.hypot(s.x - x, s.y - y);
+      if (s.ok && d < 8 && d < bestD) {
+        bestD = d;
+        best = { kind: 'craft', id };
+      }
+    }
+    if (best) return this.select(best);
     if (this.layers.comets) {
       const h = this.comets.helio;
       for (let k = 0; k < this.comets.list.length; k++) {
@@ -545,6 +597,7 @@ export class Engine {
     for (const { line } of this.orbitLines.values()) line.setResolution(w, h);
     this.selLine.setResolution(w, h);
     for (const l of this.trackLines.values()) l.setResolution(w, h);
+    this.craft.setResolution(w, h);
   }
 
   private loop = (now: number): void => {
@@ -567,6 +620,7 @@ export class Engine {
     }
 
     for (const b of BODIES) bodyPosition(b.id, at, this.bodyPos.get(b.id)!);
+    this.frameJd = jd;
 
     // Origin: follow the focus, or glide toward it during a flight.
     const target = this.targetPosition(this.focus, jd, this.tmp2) ?? this.origin;
@@ -649,6 +703,13 @@ export class Engine {
     }
     this.meteoroids.update(jd - this.meteorRefJd, this.origin, pr);
     this.surface.update(simMs, pr, this.layers.meteors);
+    this.craft.update(
+      jd,
+      camDist,
+      (id) => this.bodyPos.get(id)!,
+      (p, out) => this.relThree(p, out),
+      (p) => this.project(this.relThree(p, this.v3)),
+    );
     this.stars?.update(pr, 1);
 
     this.updateLabels(jd, camDist);
@@ -770,7 +831,24 @@ export class Engine {
     }
     const e = this.bodyPos.get('earth')!;
     const earthAu = t.kind === 'body' && t.id === 'earth' ? null : Math.hypot(p[0] - e[0], p[1] - e[1], p[2] - e[2]);
+    let rel: Telemetry['rel'] = null;
+    let pinned = false;
+    if (t.kind === 'craft') {
+      const fix = this.craft.fix(t.id);
+      pinned = !!fix?.pinned;
+      if (fix && !fix.pinned && fix.center !== 'sun' && q) {
+        // Relative to the body it orbits or flies past.
+        const b0 = this.bodyPos.get(fix.center)!;
+        const b1 = this.bodyAtJd(jd + dtDay)(fix.center);
+        const d = Math.hypot(p[0] - b0[0], p[1] - b0[1], p[2] - b0[2]);
+        const dv = Math.hypot(q[0] - b1[0] - (p[0] - b0[0]), q[1] - b1[1] - (p[1] - b0[1]), q[2] - b1[2] - (p[2] - b0[2]));
+        if (d < 0.05) rel = { body: fix.center, distAu: d, speedKms: (dv / dtDay) * KM_PER_AU / 86400 };
+      }
+      if (pinned) speed = null;
+    }
     this.events.onTelemetry({
+      rel,
+      pinned,
       key: targetKey(t),
       sunAu: Math.hypot(p[0], p[1], p[2]),
       earthAu,

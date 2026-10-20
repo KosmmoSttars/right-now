@@ -12,6 +12,7 @@ export function LayersPanel() {
   const manifest = useApp((s) => s.manifest);
   const hMax = useApp((s) => s.hMax);
   const live = useApp((s) => s.live);
+  const craft = useApp((s) => s.craft);
   const order = CLASS_STYLE.map((s, i) => ({ ...s, i })).sort((a, b) => a.order - b.order);
   const allOn = layers.asteroids.every(Boolean);
 
@@ -22,6 +23,7 @@ export function LayersPanel() {
     ['streams', 'layerStreams', null],
     ['meteors', 'layerMeteors', live ? fmtInt(lang, live.meteors.length) : null],
     ['approaches', 'layerApproaches', live ? fmtInt(lang, live.approaches.length) : null],
+    ['craft', 'layerCraft', craft.length ? fmtInt(lang, craft.length) : null],
   ];
 
   return (

@@ -7,11 +7,15 @@ import { fmtSig } from '../i18n';
 import { loadChunk, loadManifest, nameOf, splitName, decodeRecord, type Manifest } from '../sim/catalog';
 import { SimClock } from '../sim/clock';
 import { CLASS_STYLE } from '../sim/classes';
+import { flybys, loadCraftFile, loadCraftIndex, loadCraftMeta, makeCraft, type Craft } from '../sim/craft';
 import { LD_AU, approaches, fireballs, loadLive, loadStreams, meteors } from '../sim/live';
 import { BODIES } from '../sim/planets';
 import { get, set, targetKey, type Target } from './store';
 
 export const clock = new SimClock();
+/** Resolves when the asteroid catalogue has loaded (background work waits for it). */
+let catalogDone: () => void = () => {};
+const catalogLoaded = new Promise<void>((res) => (catalogDone = res));
 let engine: Engine | null = null;
 
 export function getEngine(): Engine | null {
@@ -75,6 +79,7 @@ export async function boot(container: HTMLElement): Promise<void> {
   clock.subscribe(() => set({ warp: clock.warp, paused: clock.paused, simMs: clock.now(), isLive: clock.isLive() }));
 
   void loadLiveData();
+  void loadCraft();
   void loadStreams().then((s) => engine?.setStreams(s)).catch((e) => console.warn('streams', e));
   try {
     await loadCatalog();
@@ -82,6 +87,7 @@ export async function boot(container: HTMLElement): Promise<void> {
     console.error(err);
     if (!get().loaded) set({ error: 'data' });
   }
+  catalogDone();
 }
 
 async function loadCatalog(): Promise<void> {
@@ -127,6 +133,60 @@ async function loadLiveData(): Promise<void> {
   }
 }
 
+/**
+ * Spacecraft: the list, then the index (coverage and today's fine tracks, enough to
+ * place them now), then each craft's full set of tables in the background.
+ */
+async function loadCraft(): Promise<void> {
+  let list: Craft[];
+  try {
+    list = (await loadCraftMeta()).map(makeCraft);
+  } catch (err) {
+    console.warn('craft list', err);
+    return;
+  }
+  set({ craft: list });
+  engine?.setCraft(list);
+  let version = '';
+  try {
+    const index = await loadCraftIndex();
+    version = index.builtAt;
+    for (const c of list) {
+      const e = index.craft[c.meta.id];
+      if (!e) continue;
+      c.cov = e.cov;
+      if (e.now) c.tables = [e.now];
+    }
+    set({ craftRev: get().craftRev + 1 });
+  } catch (err) {
+    console.warn('craft index', err);
+    return;
+  }
+  // Selected first, then active missions, then the historic ones.
+  const queue = list.filter((c) => c.cov).sort((a, b) => Number(!!a.meta.historic) - Number(!!b.meta.historic));
+  let catalogReady = false;
+  void catalogLoaded.then(() => (catalogReady = true));
+  while (queue.length) {
+    // The selected craft loads at once; the rest after the asteroids, so as not to slow them.
+    const sel = get().selected;
+    const at = sel?.kind === 'craft' ? queue.findIndex((c) => c.meta.id === sel.id) : -1;
+    if (at < 0 && !catalogReady) {
+      await Promise.race([catalogLoaded, new Promise((res) => setTimeout(res, 500))]);
+      continue;
+    }
+    const c = queue.splice(Math.max(0, at), 1)[0];
+    try {
+      const f = await loadCraftFile(c.meta.id, version);
+      c.tables = f.tables;
+      c.full = true;
+    } catch (err) {
+      console.warn('craft', c.meta.id, err);
+      continue;
+    }
+    set({ craftRev: get().craftRev + 1, flybys: list.flatMap((x) => (x.full ? flybys(x) : [])).sort((a, b) => a.jd - b.jd) });
+  }
+}
+
 function relabelApproaches(): void {
   const lang = get().lang;
   engine?.setApproaches(get().approaches, (a) => `${a.name} · ${translate(lang, 'ld', { d: fmtSig(lang, a.distAu / LD_AU, 2) })}`);
@@ -151,7 +211,7 @@ export function applyLayers(): void {
   engine?.setLayers(layers);
 }
 
-export function toggleLayer(key: 'orbits' | 'labels' | 'comets' | 'streams' | 'meteors' | 'approaches'): void {
+export function toggleLayer(key: 'orbits' | 'labels' | 'comets' | 'streams' | 'meteors' | 'approaches' | 'craft'): void {
   const layers = { ...get().layers, [key]: !get().layers[key] };
   set({ layers });
   applyLayers();
@@ -229,6 +289,13 @@ export function goLive(): void {
 
 export function jumpTo(ms: number): void {
   clock.jump(ms);
+}
+
+/** Jumps to half a day before a flyby and plays at an hour per second, following the craft. */
+export function watchFlyby(id: string, ms: number): void {
+  clock.jump(ms - 12 * 3_600_000);
+  clock.setWarp(3600);
+  engine?.selectAndFly({ kind: 'craft', id });
 }
 
 /** Rewinds three days and plays at an hour per second, so the meteors fall again. */

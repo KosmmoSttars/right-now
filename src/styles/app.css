@@ -144,6 +144,21 @@ dd {
   visibility: hidden;
 }
 
+.label.craft i {
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  background: transparent;
+  border: 1.5px solid var(--c);
+  box-shadow: 0 0 5px var(--c);
+}
+.label.craft .label-name {
+  font-family: var(--mono, inherit);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
 .label-sub {
   color: var(--ink-3);
   font-family: var(--mono);
@@ -604,6 +619,12 @@ button.row:hover {
   overflow-wrap: anywhere;
 }
 
+.info-about {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
 .info-sub {
   margin: 4px 0 0;
   color: var(--ink-3);

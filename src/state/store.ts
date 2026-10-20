@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Lang } from '../i18n/strings';
 import type { Manifest } from '../sim/catalog';
 import { CLASS_COUNT } from '../sim/classes';
+import type { Craft, Flyby } from '../sim/craft';
 import type { Approach, Fireball, LiveBundle, Meteor } from '../sim/live';
 import type { BodyId } from '../sim/planets';
 
@@ -9,10 +10,11 @@ export type Target =
   | { kind: 'body'; id: BodyId }
   | { kind: 'asteroid'; index: number }
   | { kind: 'comet'; index: number }
-  | { kind: 'approach'; des: string };
+  | { kind: 'approach'; des: string }
+  | { kind: 'craft'; id: string };
 
 export const targetKey = (t: Target | null): string =>
-  !t ? '' : t.kind === 'body' ? `body:${t.id}` : t.kind === 'approach' ? `approach:${t.des}` : `${t.kind}:${t.index}`;
+  !t ? '' : t.kind === 'body' || t.kind === 'craft' ? `${t.kind}:${t.id}` : t.kind === 'approach' ? `approach:${t.des}` : `${t.kind}:${t.index}`;
 
 /** Live numbers for the selected object, refreshed a few times a second. */
 export interface Telemetry {
@@ -22,6 +24,10 @@ export interface Telemetry {
   speedKms: number | null;
   /** Light travel time from the object to the Earth, seconds. */
   lightSec: number | null;
+  /** Spacecraft near a body: which, distance from its centre (AU) and speed relative to it (km/s). */
+  rel?: { body: BodyId; distAu: number; speedKms: number } | null;
+  /** Spacecraft: drawn at its planet because only coarse data covers this time. */
+  pinned?: boolean;
 }
 
 export interface Layers {
@@ -32,6 +38,7 @@ export interface Layers {
   streams: boolean;
   meteors: boolean;
   approaches: boolean;
+  craft: boolean;
 }
 
 export interface AppState {
@@ -45,6 +52,10 @@ export interface AppState {
   approaches: Approach[];
   fireballs: Fireball[];
   meteors: Meteor[];
+  /** Spacecraft (mutable objects; craftRev changes when their data does). */
+  craft: Craft[];
+  craftRev: number;
+  flybys: Flyby[];
   selected: Target | null;
   /** Name of the selected asteroid once its name shard has arrived. */
   selectedName: string | null;
@@ -72,6 +83,9 @@ export const useApp = create<AppState>(() => ({
   approaches: [],
   fireballs: [],
   meteors: [],
+  craft: [],
+  craftRev: 0,
+  flybys: [],
   selected: null,
   selectedName: null,
   telemetry: null,
@@ -84,6 +98,7 @@ export const useApp = create<AppState>(() => ({
     streams: true,
     meteors: true,
     approaches: true,
+    craft: true,
   },
   hMax: 99,
   simMs: Date.now(),

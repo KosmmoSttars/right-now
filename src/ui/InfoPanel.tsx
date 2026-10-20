@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { fmtDateTime, fmtDuration, fmtInt, fmtSig, useT, type Key } from '../i18n';
+import { fmtDate, fmtDateTime, fmtDuration, fmtInt, fmtSig, useT, type Key } from '../i18n';
 import { decodeRecord, splitName } from '../sim/catalog';
 import { CLASS_STYLE, diameterKm } from '../sim/classes';
 import { DEG, periodDays, type Orbit } from '../sim/kepler';
+import { jdFromIso } from '../sim/craft';
 import { LD_AU } from '../sim/live';
 import { BODY_BY_ID, KM_PER_AU, orbitalPeriodDays } from '../sim/planets';
-import { msFromJdTT } from '../sim/time';
+import { jdTT, msFromJdTT } from '../sim/time';
 import { flyTo, getEngine, select } from '../state/controller';
 import { targetKey, useApp } from '../state/store';
 import { Icon } from './icons';
@@ -31,6 +32,9 @@ export function InfoPanel() {
   const manifest = useApp((s) => s.manifest);
   const approaches = useApp((s) => s.approaches);
   const live = useApp((s) => s.live);
+  const craftList = useApp((s) => s.craft);
+  const simMs = useApp((s) => s.simMs);
+  useApp((s) => s.craftRev);
   if (!sel) return null;
 
   const key = targetKey(sel);
@@ -45,6 +49,7 @@ export function InfoPanel() {
   const rows: ReactNode[] = [];
   let link: string | null = null;
   let note: string | null = null;
+  let about: string | null = null;
 
   const live3 = () => {
     if (!telOk) return;
@@ -119,6 +124,35 @@ export function InfoPanel() {
       link = jplUrl(c[0].replace(/\s*\(.*\)\s*$/, ''));
     }
     note = t('orbitNote');
+  } else if (sel.kind === 'craft') {
+    const c = craftList.find((x) => x.meta.id === sel.id);
+    const m = c?.meta;
+    title = m ? m.name : sel.id;
+    subtitle = m && m.short && m.short !== m.name ? m.short : null;
+    color = m?.historic ? '#9aa6bd' : '#c7a8ff';
+    kind = `${m?.historic ? t('kindCraftHistoric') : t('kindCraft')}${m ? ` · ${m.agency}` : ''}`;
+    if (m) rows.push(<Row key="l" k={t('launched')}>{fmtDate(lang, Date.parse(`${m.launch}T00:00:00Z`))}</Row>);
+    if (telOk) {
+      if (tel!.rel) {
+        const b = BODY_BY_ID[tel!.rel.body];
+        const name = t(tel!.rel.body);
+        rows.push(<Row key="rd" k={t('relDist', { body: name })}>{fmtInt(lang, tel!.rel.distAu * KM_PER_AU - b.radiusKm)} {t('km')}</Row>);
+        rows.push(<Row key="rv" k={t('relSpeed', { body: name })}>{fmtSig(lang, tel!.rel.speedKms, 3)} {t('kms')}</Row>);
+      }
+      if (!(tel!.pinned)) {
+        rows.push(<Row key="sun" k={t('distSun')}>{au(tel!.sunAu)}</Row>);
+      }
+      if (tel!.earthAu !== null) rows.push(<Row key="earth" k={t('distEarth')}>{au(tel!.earthAu)}</Row>);
+      if (tel!.speedKms !== null) rows.push(<Row key="v" k={t('speed')}>{fmtSig(lang, tel!.speedKms, 3)} {t('kms')}</Row>);
+      if (tel!.lightSec !== null) rows.push(<Row key="lt" k={t('signalTime')}>{tel!.lightSec < 20 ? `${fmtSig(lang, tel!.lightSec, 2)} ${lang === 'ru' ? 'с' : 's'}` : fmtDuration(lang, tel!.lightSec * 1000)}</Row>);
+      rows.push(<Row key="tr" k={t('trajectory')}>{simMs <= Date.now() ? t('trajPast') : t('trajFuture')}</Row>);
+    }
+    if (m) link = `https://en.wikipedia.org/wiki/${encodeURIComponent(m.wiki)}`;
+    const stay = c && m ? c.stays.find((st) => { const jd = jdTT(simMs); return jd >= st.from && jd <= st.to; }) : null;
+    note = !telOk
+      ? (m && jdTT(simMs) < jdFromIso(m.launch)) || c?.full ? t('craftGone') : null
+      : tel!.pinned && stay ? t('craftPinned', { body: t(stay.body) }) : t('craftNote');
+    if (m) about = m.about[lang];
   } else {
     const a = approaches.find((x) => x.des === sel.des);
     title = a?.name ?? sel.des;
@@ -150,6 +184,7 @@ export function InfoPanel() {
       </header>
       <h2 className="info-title">{title}</h2>
       {subtitle && <p className="info-sub">{subtitle}</p>}
+      {about && <p className="info-about">{about}</p>}
       <dl>{rows}</dl>
       <div className="info-actions">
         <button className="action" onClick={() => flyTo(sel)} disabled={focused}>
@@ -158,7 +193,7 @@ export function InfoPanel() {
         </button>
         {link && (
           <a className="action ghost" href={link} target="_blank" rel="noreferrer">
-            {t('jplLink')}
+            {sel.kind === 'craft' ? t('wikiLink') : t('jplLink')}
             <Icon name="external" size={14} />
           </a>
         )}

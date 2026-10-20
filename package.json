@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3130 --strictPort",
+    "dev:local": "vite --port 3133 --strictPort --mode localapi",
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 3131 --strictPort",
     "assets": "node scripts/assets.mjs",

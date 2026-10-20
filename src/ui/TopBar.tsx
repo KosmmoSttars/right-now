@@ -40,6 +40,12 @@ export function TopBar() {
         local.push({ key: `body:${b.id}`, label: t(b.id), sub: b.id === 'sun' ? t('kindStar') : b.id === 'moon' ? t('kindMoon') : b.id === 'pluto' ? t('kindDwarf') : t('kindPlanet'), target: { kind: 'body', id: b.id } });
       }
     }
+    for (const c of useApp.getState().craft) {
+      const m = c.meta;
+      if (local.length < 12 && [m.name, m.short ?? '', m.id].some((n) => n.toLowerCase().includes(low))) {
+        local.push({ key: `craft:${m.id}`, label: m.name, sub: `${t('kindCraftSearch')} · ${m.agency}`, target: { kind: 'craft', id: m.id } });
+      }
+    }
     (live?.comets ?? []).forEach((c, index) => {
       if (local.length < 12 && c[0].toLowerCase().includes(low)) local.push({ key: `comet:${index}`, label: c[0], sub: t('kindComet'), target: { kind: 'comet', index } });
     });

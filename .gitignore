@@ -7,3 +7,4 @@ playwright-report
 test-results
 *.tsbuildinfo
 tools/deploy.local.ps1
+/data/
