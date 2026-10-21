@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { fmtInt, rememberLang, useT } from '../i18n';
 import { searchNames, splitName } from '../sim/catalog';
 import { BODIES } from '../sim/planets';
-import { selectAndFly, setLang } from '../state/controller';
+import { selectAndFly, setLang, setMode } from '../state/controller';
 import { set, useApp, type Target } from '../state/store';
 import { Icon } from './icons';
 
@@ -20,6 +20,7 @@ export function TopBar() {
   const manifest = useApp((s) => s.manifest);
   const panel = useApp((s) => s.panel);
   const live = useApp((s) => s.live);
+  const mode = useApp((s) => s.mode);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [active, setActive] = useState(0);
@@ -78,7 +79,15 @@ export function TopBar() {
         <h1>{t('title')}</h1>
         <p>{t('tagline')}</p>
       </div>
-      <div className="search">
+      <div className="mode-switch" role="tablist" aria-label={t('modeSky')}>
+        <button role="tab" aria-selected={mode === 'space'} className={mode === 'space' ? 'on' : ''} onClick={() => setMode('space')}>
+          {t('modeSpace')}
+        </button>
+        <button role="tab" aria-selected={mode === 'sky'} className={mode === 'sky' ? 'on' : ''} onClick={() => setMode('sky')}>
+          {t('modeSky')}
+        </button>
+      </div>
+      <div className="search" hidden={mode === 'sky'}>
         <label className="search-box glass">
           <Icon name="search" />
           <input

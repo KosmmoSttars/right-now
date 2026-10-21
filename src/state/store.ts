@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import type { Lang } from '../i18n/strings';
 import type { Manifest } from '../sim/catalog';
 import { CLASS_COUNT } from '../sim/classes';
+import type { SkyLayers, SkySel } from '../engine/SkyView';
 import type { Craft, Flyby } from '../sim/craft';
+import type { Place } from '../sim/sky';
 import type { Approach, Fireball, LiveBundle, Meteor } from '../sim/live';
 import type { BodyId } from '../sim/planets';
 
@@ -69,7 +71,14 @@ export interface AppState {
   paused: boolean;
   isLive: boolean;
   panel: 'events' | 'layers' | null;
-  dialog: 'about' | null;
+  dialog: 'about' | 'place' | null;
+  /** Solar System or the sky from the observer's place. */
+  mode: 'space' | 'sky';
+  place: Place | null;
+  skyLayers: SkyLayers;
+  skySel: SkySel | null;
+  /** Centre of the sky view, for the compass readout. */
+  skyView: { az: number; alt: number; fov: number };
   fps: number;
 }
 
@@ -107,6 +116,11 @@ export const useApp = create<AppState>(() => ({
   isLive: true,
   panel: 'events',
   dialog: null,
+  mode: 'space',
+  place: null,
+  skyLayers: { ground: true, grid: false, constellations: true, names: true, showers: true, meteors: true, craft: true },
+  skySel: null,
+  skyView: { az: 180, alt: 25, fov: 75 },
   fps: 60,
 }));
 

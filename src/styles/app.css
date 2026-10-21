@@ -877,6 +877,155 @@ button.row:hover {
   color: var(--now);
 }
 
+/* ---------------------------------------------------------------- sky mode */
+
+.mode-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+.mode-switch button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.mode-switch button.on {
+  color: var(--now);
+  background: var(--now-dim);
+}
+.search[hidden] {
+  display: none;
+}
+.app[data-mode='sky'] .top-actions {
+  margin-left: auto;
+}
+.sky-hud {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  background: rgba(1, 2, 5, 0.45);
+  font: 11.5px var(--mono);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.sun-state {
+  margin: 8px 0 2px;
+  font: 600 15px var(--display);
+  color: var(--ink);
+}
+.sun-state.s-day {
+  color: #9cc8ff;
+}
+.sun-state.s-civil,
+.sun-state.s-nautical {
+  color: #ffb98a;
+}
+.place-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 6px 0 0;
+  font-size: 14px;
+}
+.app[data-mode='sky'] .load-strip {
+  display: none;
+}
+.link-btn {
+  margin-left: auto;
+  color: var(--now);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rows li.dim .r-main {
+  color: var(--ink-3);
+}
+.note.warn {
+  color: #ffb98a;
+}
+.place-dialog .field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 14px 0 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.place-dialog input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(1, 2, 5, 0.5);
+  font: 14px var(--font);
+}
+.place-dialog input:focus {
+  outline: 2px solid rgba(255, 181, 71, 0.5);
+  outline-offset: 1px;
+}
+.place-dialog .coords {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.place-dialog .coords .field {
+  flex: 1 1 120px;
+  margin: 4px 0;
+}
+.place-dialog .coords .action {
+  margin-bottom: 5px;
+}
+.city-list {
+  max-height: 260px;
+  overflow: auto;
+}
+.sky-labels .label.compass {
+  font: 600 13px var(--display);
+  color: #9fc4e8;
+  letter-spacing: 0.06em;
+}
+.sky-labels .label.const {
+  font-size: 10.5px;
+  font-style: italic;
+  letter-spacing: 0.05em;
+  color: rgba(140, 165, 225, 0.75);
+  cursor: default;
+  pointer-events: none;
+}
+.sky-labels .label.star i {
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  opacity: 0;
+}
+.sky-labels .label.star .label-name {
+  font-size: 11px;
+  color: #c9d3e3;
+}
+.sky-labels .label.radiant i {
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: transparent;
+  border: 1.5px dashed var(--c);
+  box-shadow: none;
+}
+
 /* ---------------------------------------------------------------- small screens */
 
 @media (max-width: 900px) {
@@ -908,8 +1057,21 @@ button.row:hover {
   }
 
   .search {
+    order: 4;
+    width: 100%;
+  }
+
+  .mode-switch {
     order: 3;
     width: 100%;
+  }
+
+  .mode-switch button {
+    flex: 1;
+  }
+
+  .sky-hud {
+    display: none;
   }
 
   .top-actions {

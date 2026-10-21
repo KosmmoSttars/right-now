@@ -23,6 +23,18 @@ The whole Solar System as it stands this second, live at
 - **Fireballs** from US government sensors (CNEOS), the **Sentry** impact-risk list and
   **Scout**'s just-discovered, still-unconfirmed objects.
 
+- **Thirty spacecraft**, from Pioneer 10 and the Voyagers to Europa Clipper and the Mars
+  orbiters, each on its JPL Horizons trajectory. An orbiter circles its planet as drawn
+  (MRO 280 km over Mars, Juno diving over Jupiter), flybys bend around the planet, and the
+  next ones are found in the data and can be replayed. Historic missions (Galileo, Cassini,
+  Rosetta, MESSENGER...) appear when you rewind to their years.
+- **Sky above you**: a planetarium from your place (browser location, one of 6 000 cities,
+  or coordinates). The sky colour follows the Sun through twilight, stars fade by day and
+  toward the horizon, the Moon shows its phase, and a panel says what is up and where to
+  look: planets with altitude, direction, rise and set, the Moon, active shower radiants
+  with the rate to expect. The meteors the Global Meteor Network recorded over your sky
+  replay where they really flashed. The place never leaves the browser.
+
 What no one can show is the meteoroids that have not hit yet: they are too small to see
 in space. The streams are a model built from the real orbits of the ones that did.
 
@@ -47,6 +59,29 @@ Direct3D), so the engine keeps a point budget: while the view moves it draws as 
 of the largest asteroids as keep the frame rate up; a still view draws all of them
 at a relaxed rate, since nothing visibly moves between frames.
 
+### Spacecraft
+
+Horizons answers one request at a time, so `build_craft()` in `data.php` keeps a list of
+tables per craft (see `public/data/craft.json`): a whole-mission table relative to the
+Sun (2 000 intervals), finer tables relative to a planet around each flyby and for whole
+stays in orbit, and a fine track around today relative to the body the craft orbits.
+Each table is one Horizons request; stale ones are fetched a slice at a time within the
+100-second request limit (or all at once with `php public/api/data.php craft`). Coverage
+comes from Horizons itself: when a span runs past the ephemeris, the error message says
+where it ends and the request is retried inside it. The client takes the finest table
+that covers the time, interpolates it with cubic Hermite polynomials and adds the
+centre body's position, so the craft sits on the planet as astronomy-engine draws it.
+Where only the coarse table covers a stay in orbit, the craft is drawn at its planet.
+
+### Sky above you
+
+`src/sim/sky.ts` turns J2000 directions into the local sky with astronomy-engine's
+EQJ→horizon rotation (precession, nutation, the Earth's turn); stars, constellation
+lines and the ecliptic share that one matrix on the GPU. Planets, the Sun and the Moon
+come from `Equator()` + `Horizon()` with refraction for the numbers. The Moon is a
+billboard lit from the Sun's direction in its own frame. GMN meteors within 1 100 km
+become streaks between the topocentric directions of their measured begin and end points.
+
 ## Develop
 
 ```bash
@@ -55,16 +90,31 @@ npm run dev        # http://localhost:3130, the data API is proxied to the live 
 npm run build
 npm run assets     # planet textures (Solar System Scope, CC BY 4.0) → public/textures
 npm run streams    # meteor streams from the GMN 2025 file → public/data/streams.json
+npm test
 ```
+
+To try `data.php` changes before deploying, run it locally with PHP 8 (curl, openssl and
+zlib enabled): `php -S 127.0.0.1:3132 -t public` and `npm run dev:local`, which sends the
+spacecraft endpoints there (the rest still goes to the live site); the local cache is
+`data/rightnow`.
 
 `node scripts/frames.mjs <url> <prefix> <ms,...>` and `node scripts/perf.mjs` take
 screenshots and measure frame rates in headless Edge with the GPU on.
 
-Deploy: `powershell -ExecutionPolicy Bypass -File tools\deploy.ps1`.
+Deploy: `powershell -ExecutionPolicy Bypass -File tools\deploy.ps1 -Server user@host`
+(or put `$Server = "user@host"` in an untracked `tools\deploy.local.ps1`).
 
 ## Data and credits
 
 JPL Small-Body Database, CNEOS (close approaches, fireballs, Sentry), JPL Scout,
 JPL Horizons, Global Meteor Network (CC BY 4.0), astronomy-engine (MIT),
-Yale Bright Star Catalogue, Solar System Scope textures (CC BY 4.0), NASA Blue and
-Black Marble.
+Yale Bright Star Catalogue, constellation lines and names from d3-celestial by Olaf
+Frohn (BSD 3-Clause), cities from GeoNames (CC BY 4.0), Solar System Scope textures
+(CC BY 4.0), NASA Blue and Black Marble.
+
+## License
+
+The code is MIT (see LICENSE). The data files keep their own licences: textures and
+`public/data/streams.json` / `cities.json` are CC BY 4.0 (Solar System Scope, Global
+Meteor Network, GeoNames), `public/data/constellations.json` is BSD 3-Clause
+(d3-celestial).

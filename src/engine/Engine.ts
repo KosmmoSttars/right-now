@@ -24,6 +24,7 @@ import { CraftLayer } from './CraftLayer';
 import { Labels } from './Labels';
 import { OrbitPoints, type OrbitPoint } from './OrbitPoints';
 import { Polyline } from './Polyline';
+import { SkyView, type SkySel } from './SkyView';
 import { Stars } from './Stars';
 import { Surface } from './Surface';
 
@@ -32,6 +33,7 @@ export interface EngineEvents {
   onFocus: (t: Target) => void;
   onTelemetry: (t: Telemetry | null) => void;
   onFps: (fps: number) => void;
+  onSkySelect: (s: SkySel | null) => void;
 }
 
 export interface NamedBody {
@@ -78,6 +80,9 @@ export class Engine {
   private bodyPos = new Map<BodyId, Vec3>(BODIES.map((b) => [b.id, [0, 0, 0] as Vec3]));
   private layers = { orbits: true, labels: true, comets: true, streams: true, meteors: true, approaches: true, craft: true };
   readonly craft: CraftLayer;
+  /** The planetarium view from a place on the Earth (shares the renderer). */
+  readonly sky: SkyView;
+  private skyMode = false;
   /** JD of the frame whose body positions are in bodyPos. */
   private frameJd = NaN;
 
@@ -170,6 +175,8 @@ export class Engine {
       });
     }
 
+    this.sky = new SkyView(container, canvas, { onSelect: (sel) => this.events.onSkySelect(sel) }, new THREE.TextureLoader().load('textures/moon.webp'));
+
     this.pickWorker = new Worker(new URL('../workers/pick.worker.ts', import.meta.url), { type: 'module' });
     this.pickWorker.onmessage = (ev: MessageEvent<PickResponse>) => {
       if (ev.data.id !== this.pickId) return;
@@ -194,6 +201,7 @@ export class Engine {
   setStars(catalog: [number, number, number, number][]): void {
     this.stars = new Stars(catalog);
     this.scene.add(this.stars.points);
+    this.sky.setStars(catalog);
   }
 
   setManifest(m: Manifest): void {
@@ -229,6 +237,7 @@ export class Engine {
 
   setComets(rows: Parameters<Comets['set']>[0]): void {
     this.comets.set(rows);
+    this.sky.setComets(this.comets.list);
   }
 
   setStreams(file: StreamsFile): void {
@@ -274,10 +283,12 @@ export class Engine {
     }
     this.meteoroids.set(pts);
     this.surface.setMeteors(list);
+    this.sky.setMeteors(list);
   }
 
   setCraft(list: Craft[]): void {
     this.craft.setCraft(list);
+    this.sky.setCraft(list);
   }
 
   setFireballs(list: Fireball[]): void {
@@ -304,7 +315,16 @@ export class Engine {
     this.comets.group.visible = l.comets;
     this.streams.points.visible = l.streams;
     this.meteoroids.points.visible = l.meteors;
-    this.labels.root.classList.toggle('hidden', !l.labels);
+    this.labels.root.classList.toggle('hidden', !l.labels || this.skyMode);
+  }
+
+  /** Switches between the Solar System and the sky from the observer's place. */
+  setMode(mode: 'space' | 'sky'): void {
+    this.skyMode = mode === 'sky';
+    this.sky.setActive(this.skyMode);
+    this.controls.enabled = !this.skyMode;
+    this.labels.root.classList.toggle('hidden', !this.layers.labels || this.skyMode);
+    this.lastRender = 0;
   }
 
   setHMax(h: number): void {
@@ -490,7 +510,7 @@ export class Engine {
   };
 
   private onPointerUp = (e: PointerEvent): void => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || this.skyMode) return;
     const moved = this.downAt.distanceTo(this.v2(e.clientX, e.clientY));
     if (moved > 5 || performance.now() - this.downTime > 600) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -498,7 +518,7 @@ export class Engine {
   };
 
   private onDoubleClick = (): void => {
-    if (this.selected) this.flyTo(this.selected);
+    if (this.selected && !this.skyMode) this.flyTo(this.selected);
   };
 
   private v2(x: number, y: number): THREE.Vector2 {
@@ -598,10 +618,15 @@ export class Engine {
     this.selLine.setResolution(w, h);
     for (const l of this.trackLines.values()) l.setResolution(w, h);
     this.craft.setResolution(w, h);
+    this.sky.resize(w, h, this.pixelRatio);
   }
 
   private loop = (now: number): void => {
     this.raf = requestAnimationFrame(this.loop);
+    if (this.skyMode) {
+      if (this.sky.frame(now, this.renderer, this.clock.now(), this.clock.warp)) this.countFrame(now);
+      return;
+    }
     const active = !!this.fly || now - this.lastActive < 500 || Math.abs(this.clock.warp) > 60 || now - this.lastRender > 1000;
     if (!active && now - this.lastRender < 70) {
       this.lastFrameAt = 0;
@@ -716,14 +741,17 @@ export class Engine {
     this.updateTelemetry(now, jd, simMs);
 
     this.renderer.render(this.scene, this.camera);
+    this.countFrame(now);
+  };
 
+  private countFrame(now: number): void {
     this.fpsFrames++;
     if (now - this.fpsSince > 2000) {
       this.events.onFps((this.fpsFrames * 1000) / (now - this.fpsSince));
       this.fpsFrames = 0;
       this.fpsSince = now;
     }
-  };
+  }
 
   private adaptBudget(now: number, active: boolean): void {
     const ast = this.asteroids;

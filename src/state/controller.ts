@@ -4,12 +4,15 @@ import * as THREE from 'three';
 import { Engine } from '../engine/Engine';
 import { translate } from '../i18n';
 import { fmtSig } from '../i18n';
-import { loadChunk, loadManifest, nameOf, splitName, decodeRecord, type Manifest } from '../sim/catalog';
+import { fetchJson, loadChunk, loadManifest, nameOf, splitName, decodeRecord, type Manifest } from '../sim/catalog';
 import { SimClock } from '../sim/clock';
 import { CLASS_STYLE } from '../sim/classes';
 import { flybys, loadCraftFile, loadCraftIndex, loadCraftMeta, makeCraft, type Craft } from '../sim/craft';
 import { LD_AU, approaches, fireballs, loadLive, loadStreams, meteors } from '../sim/live';
 import { BODIES } from '../sim/planets';
+import { SHOWERS } from '../sim/live';
+import { dirToAltAz, sunCrossing, type Place } from '../sim/sky';
+import type { ConstellationFile, SkyLayers, SkySel } from '../engine/SkyView';
 import { get, set, targetKey, type Target } from './store';
 
 export const clock = new SimClock();
@@ -57,12 +60,23 @@ export async function boot(container: HTMLElement): Promise<void> {
         onFocus: (t) => set({ focus: t }),
         onTelemetry: (t) => set({ telemetry: t }),
         onFps: (fps) => set({ fps }),
+        onSkySelect: (sel) => set({ skySel: sel }),
       },
       { day, night, aux },
       quality,
     );
     engine.setStars(stars);
-    if (import.meta.env.DEV) Object.assign(window, { __rn: { engine, get, set, clock } });
+    engine.sky.setShowers(SHOWERS);
+    engine.sky.setLayers(get().skyLayers);
+    const place = loadPlace();
+    if (place) {
+      set({ place });
+      engine.sky.setPlace(place);
+      defaultView(place);
+    }
+    void fetchJson<ConstellationFile>('data/constellations.json').then((c) => engine?.sky.setConstellations(c)).catch((e) => console.warn('constellations', e));
+    if (/^#sky/.test(location.hash)) setMode('sky');
+    if (import.meta.env.DEV) Object.assign(window, { __rn: { engine, get, set, clock, setMode, setPlace, skySelect, replayNight } });
     relabelBodies();
     applyLayers();
     if (small) set({ hMax: 18, panel: null });
@@ -75,7 +89,14 @@ export async function boot(container: HTMLElement): Promise<void> {
   }
 
   // Time ticks for the UI.
-  setInterval(() => set({ simMs: clock.now(), isLive: clock.isLive() }), 250);
+  setInterval(() => {
+    set({ simMs: clock.now(), isLive: clock.isLive() });
+    if (get().mode === 'sky' && engine) {
+      const v = engine.sky.view();
+      const o = get().skyView;
+      if (Math.abs(v.az - o.az) + Math.abs(v.alt - o.alt) + Math.abs(v.fov - o.fov) > 0.5) set({ skyView: v });
+    }
+  }, 250);
   clock.subscribe(() => set({ warp: clock.warp, paused: clock.paused, simMs: clock.now(), isLive: clock.isLive() }));
 
   void loadLiveData();
@@ -195,6 +216,7 @@ function relabelApproaches(): void {
 function relabelBodies(): void {
   const lang = get().lang;
   for (const b of BODIES) engine?.setBodyLabel(b.id, translate(lang, b.id));
+  engine?.sky.setLang(lang, Object.fromEntries(BODIES.map((b) => [b.id, translate(lang, b.id)])));
 }
 
 export function setLang(lang: 'en' | 'ru'): void {
@@ -232,6 +254,98 @@ export function setAllClasses(on: boolean): void {
 export function setHMax(h: number): void {
   set({ hMax: h });
   engine?.setHMax(h);
+}
+
+// ---------------------------------------------------------------- sky
+
+const PLACE_KEY = 'rn-place';
+
+function loadPlace(): Place | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(PLACE_KEY) ?? 'null') as Place | null;
+    return p && Number.isFinite(p.lat) && Number.isFinite(p.lon) ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Facing the celestial equator's highest point: south in the north, north in the south. */
+function defaultView(p: Place): void {
+  const az = p.lat >= 0 ? 180 : 0;
+  engine?.sky.lookAt(az, 30, 75);
+}
+
+export function setMode(mode: 'space' | 'sky'): void {
+  set({ mode });
+  engine?.setMode(mode);
+  if (mode === 'sky' && !get().place) set({ dialog: 'place' });
+  history.replaceState(null, '', mode === 'sky' ? '#sky' : location.pathname + location.search);
+}
+
+export function setPlace(p: Place): void {
+  set({ place: p, dialog: get().dialog === 'place' ? null : get().dialog });
+  try {
+    localStorage.setItem(PLACE_KEY, JSON.stringify(p));
+  } catch {
+    // not fatal: the place lasts until the page closes
+  }
+  engine?.sky.setPlace(p);
+  defaultView(p);
+}
+
+/** The browser's position; resolves with an error key on failure. */
+export function locateMe(): Promise<'ok' | 'denied' | 'unavailable'> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve('unavailable');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPlace({ lat: pos.coords.latitude, lon: pos.coords.longitude, height: pos.coords.altitude ?? 0, name: null });
+        resolve('ok');
+      },
+      (err) => resolve(err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable'),
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 600_000 },
+    );
+  });
+}
+
+export function toggleSkyLayer(key: keyof SkyLayers): void {
+  const skyLayers = { ...get().skyLayers, [key]: !get().skyLayers[key] };
+  set({ skyLayers });
+  engine?.sky.setLayers(skyLayers);
+}
+
+export function skySelect(sel: SkySel | null, look = false): void {
+  engine?.sky.select(sel);
+  if (look && sel) skyLook(sel);
+}
+
+/** Turns the sky view toward a selection. */
+export function skyLook(sel: SkySel): void {
+  const d = engine?.sky.selDir(sel, clock.now());
+  if (!d) return;
+  const { alt, az } = dirToAltAz(d);
+  engine?.sky.lookAt(az, Math.max(alt, 12));
+}
+
+/** From the sky to the same object in the Solar System view. */
+export function showInSpace(t: Target): void {
+  setMode('space');
+  engine?.selectAndFly(t);
+}
+
+/**
+ * Last night over the observer: back to dusk (Sun 12° down) and an hour a second,
+ * so the meteors GMN recorded over this sky flash where they were.
+ */
+export function replayNight(): void {
+  const p = get().place;
+  if (!p) return;
+  const now = clock.now();
+  // The latest dusk before now (tonight's, if it is already dark).
+  let dusk = sunCrossing(now - 40 * 3_600_000, p, -1, -12);
+  for (let next = dusk; next !== null && next < now - 3_600_000; next = sunCrossing(next + 3_600_000, p, -1, -12)) dusk = next;
+  clock.jump(dusk !== null && dusk < now ? dusk : now - 12 * 3_600_000);
+  clock.setWarp(3600);
 }
 
 // ---------------------------------------------------------------- selection
