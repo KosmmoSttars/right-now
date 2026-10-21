@@ -62,6 +62,10 @@ if ($status -match '"asteroids":null') {
     Write-Host "Building the asteroid catalogue (about four minutes)..."
     ssh $Server "cd /tmp && sudo -u www php $Dir/api/data.php asteroids"
 }
+if ($status -match '"craft":null') {
+    Write-Host "Fetching the spacecraft trajectories from JPL Horizons (about ten minutes)..."
+    ssh $Server "cd /tmp && sudo -u www php $Dir/api/data.php craft"
+}
 if ($status -match '"live":null') {
     Write-Host "Fetching the live data..."
     ssh $Server "cd /tmp && sudo -u www php $Dir/api/data.php live"
